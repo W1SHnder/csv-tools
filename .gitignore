@@ -1,0 +1,8 @@
+/src/main.zig
+*.csv
+/src/main.zig
+*.csv
+/zig-out/
+/bin/
+/.zig-cache
+
