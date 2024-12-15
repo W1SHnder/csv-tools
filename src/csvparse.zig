@@ -79,6 +79,49 @@ pub fn splitCsvRow(comptime T: type, buffer: []const T, delimiter: T) CsvRowIter
     };
 }
 
+pub fn countScalar(comptime T: type, slice: []const T, start_index: usize, scalar: T) usize {
+    var count: usize = 0;
+    var i: usize = start_index;
+
+    if (std.simd.suggestVectorLength(T)) |block_len| {
+        const Block = @Vector(block_len, T);
+        if (i + 2 * block_len < slice.len) {
+            while (true) {
+                inline for (0..2) |_| {
+                    const block: Block = slice[i..][0..block_len].*;
+                    const found = std.simd.countElementsWithValue(block, scalar);
+                    std.debug.print("Found: {d}\n", .{found});
+                    count += found;
+                    i += block_len;
+                }
+                if (i + 2 * block_len >= slice.len) break;
+            }
+        }
+
+        inline for (0..2) |j| {
+            const block_x_len = block_len / (1 << j);
+            comptime if (block_x_len < 4) break;
+            const BlockX = @Vector(block_x_len, T);
+            if (i + block_x_len < slice.len) {
+                const block: BlockX = slice[i..][0..block_x_len].*;
+                const found = std.simd.countElementsWithValue(block, scalar);
+                std.debug.print("Found: {d}\n", .{found});
+                count += found;
+            }
+            i += block_x_len;
+        }
+        return count;
+    }
+
+    for (slice[i..]) |c| {
+        if (c == scalar) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
 test "split-row-test-basic" {
     const row = "testval,testval,testval";
     var iter = splitCsvRow(u8, row, ',');
@@ -108,3 +151,9 @@ test "split-row-test-error2" {
     const val = iter.next();
     try testing.expect(val == CsvError.MalformedCsv);
 }
+
+//test "count-Scalar" {
+//  const row = "test,val,test,val";
+//   const count = countScalar(u8, row, 0, ',');
+//  try testing.expectEqual(3, count);
+//}
